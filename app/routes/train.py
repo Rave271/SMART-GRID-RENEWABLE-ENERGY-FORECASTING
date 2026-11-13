@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 import pandas as pd
 
-from app.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, DEFAULT_SAMPLE_PATH, require_api_key, rate_limit_train
+from app.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, SAMPLE_DATA_DIR, DEFAULT_SAMPLE_PATH, require_api_key, rate_limit_train
 from app.services.preprocessing import preprocess_energy_data
 from app.services.model import GridForecaster, train_all_models, TARGETS, MODEL_TYPES
 from app.db.database import record_trained_model
@@ -16,8 +16,14 @@ router = APIRouter(prefix="/api", tags=["Preprocessing & Training"], dependencie
 
 def resolve_active_dataset(filepath: Optional[str] = None) -> Path:
     """Find requested dataset or default to latest raw/sample file."""
-    if filepath and Path(filepath).exists():
-        return Path(filepath)
+    if filepath:
+        requested_path = Path(filepath).expanduser().resolve()
+        approved_roots = [RAW_DATA_DIR.resolve(), SAMPLE_DATA_DIR.resolve()]
+        if not any(requested_path.is_relative_to(root) for root in approved_roots):
+            raise HTTPException(status_code=400, detail="Dataset path must be inside the approved data directories.")
+        if requested_path.is_file() and requested_path.suffix.lower() == ".csv":
+            return requested_path
+        raise HTTPException(status_code=404, detail="Requested dataset was not found or is not a CSV file.")
 
     # Check for uploaded raw files
     raw_files = sorted(RAW_DATA_DIR.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)

@@ -1,5 +1,6 @@
 """Route for generating future renewable energy and demand forecasts."""
 
+import re
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException, Depends
@@ -45,13 +46,12 @@ async def get_predictions(
         hours = 24
     elif horizon_clean in ("7d", "168h"):
         hours = 168
+    elif re.fullmatch(r"[1-9]\d*h", horizon_clean):
+        hours = int(horizon_clean[:-1])
+        if hours > 168:
+            raise HTTPException(status_code=400, detail="Forecast horizon cannot exceed 168 hours.")
     else:
-        try:
-            hours = int(horizon_clean.replace("h", ""))
-        except ValueError:
-            hours = 24
-
-    hours = max(1, min(hours, 168))
+        raise HTTPException(status_code=400, detail="Invalid horizon. Use 24h, 7d, or an hourly value up to 168h.")
     m_type = model_type_value.lower()
     if m_type not in MODEL_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid model_type '{m_type}'. Must be one of {MODEL_TYPES}.")
@@ -75,25 +75,27 @@ async def get_predictions(
             if future_weather_df.empty:
                 future_weather_df = None
 
-    # Ensure models exist; if not, train them automatically
-    for t in TARGETS:
+    active_targets = TARGETS if target_value == "all" else [target_value]
+    for t in active_targets:
         fc = GridForecaster(target=t, model_type=m_type)
         if not fc.get_model_path().exists():
-            fc.train(df)
+            raise HTTPException(
+                status_code=409,
+                detail=f"Model for {t} ({m_type}) is not trained. Train it with POST /api/train first.",
+            )
 
     # Perform multi-step forecasting
     pred_solar = []
     pred_wind = []
     pred_demand = []
 
-    solar_fc = GridForecaster(target="solar_power_mw", model_type=m_type)
-    pred_solar = solar_fc.predict_future(df, horizon_hours=hours, future_weather=future_weather_df)
-
-    wind_fc = GridForecaster(target="wind_power_mw", model_type=m_type)
-    pred_wind = wind_fc.predict_future(df, horizon_hours=hours, future_weather=future_weather_df)
-
-    demand_fc = GridForecaster(target="electricity_demand_mw", model_type=m_type)
-    pred_demand = demand_fc.predict_future(df, horizon_hours=hours, future_weather=future_weather_df)
+    forecasts = {}
+    for t in active_targets:
+        forecaster = GridForecaster(target=t, model_type=m_type)
+        forecasts[t] = forecaster.predict_future(df, horizon_hours=hours, future_weather=future_weather_df)
+    pred_solar = forecasts.get("solar_power_mw", [0.0] * hours)
+    pred_wind = forecasts.get("wind_power_mw", [0.0] * hours)
+    pred_demand = forecasts.get("electricity_demand_mw", [0.0] * hours)
 
     # Generate future timestamps
     last_ts = pd.to_datetime(df["timestamp"].iloc[-1])
@@ -132,14 +134,18 @@ async def get_predictions(
             max_deficit = abs(bal)
             peak_deficit_time = ts
 
-        predictions.append({
+        prediction = {
             "timestamp": ts,
-            "predicted_solar": s,
-            "predicted_wind": w,
-            "predicted_generation": g,
-            "predicted_demand": d,
-            "surplus_deficit": bal,
-        })
+        }
+        if target_value in ("all", "solar_power_mw"):
+            prediction["predicted_solar"] = s
+        if target_value in ("all", "wind_power_mw"):
+            prediction["predicted_wind"] = w
+        if target_value in ("all", "electricity_demand_mw"):
+            prediction["predicted_demand"] = d
+        if target_value == "all":
+            prediction.update({"predicted_generation": g, "surplus_deficit": bal})
+        predictions.append(prediction)
 
     summary = {
         "horizon_hours": hours,

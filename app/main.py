@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 
-from app.config import FRONTEND_DIR, DEFAULT_SAMPLE_PATH, validate_auth_config
+from app.config import FRONTEND_DIR, DEFAULT_SAMPLE_PATH, ALLOWED_CORS_ORIGINS, validate_auth_config
 from app.db.database import init_db
 from app.routes import upload, weather, train, predict, recommendations, reports
 
@@ -39,7 +39,7 @@ app = FastAPI(
 # Enable CORS for frontend and external integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

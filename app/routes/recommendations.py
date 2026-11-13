@@ -21,7 +21,7 @@ async def get_grid_recommendations(
     model_type: str = Query("xgboost", description="Model architecture: 'xgboost' or 'mlp'"),
     city: Optional[str] = Query(None, description="City for live weather context"),
 ):
-    """Generate rule-based dispatch, battery storage, and load shifting recommendations based on forecast."""
+    """Generate rule-based grid recommendations based on the forecast."""
     horizon_value = horizon if isinstance(horizon, str) else "24h"
     model_type_value = model_type if isinstance(model_type, str) else "xgboost"
     city_value = city if isinstance(city, str) else None

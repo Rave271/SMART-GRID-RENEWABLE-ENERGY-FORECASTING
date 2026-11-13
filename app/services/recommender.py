@@ -1,4 +1,4 @@
-"""Rule-based smart grid energy utilization and battery dispatch recommender."""
+"""Rule-based smart-grid energy recommendations without battery SOC modelling."""
 
 from typing import List, Dict, Any
 import numpy as np
@@ -70,7 +70,7 @@ def generate_recommendations(
                 "severity": "warning",
                 "title": f"Generation Deficit ({abs(net_balance):.1f} MW)",
                 "description": f"Demand exceeds clean generation by {abs(net_balance):.1f} MW at {timestamp}.",
-                "action": "Schedule spinning reserves or initiate scheduled battery discharge to maintain grid frequency.",
+                "action": "Schedule spinning reserves and review available storage or demand-response capacity to maintain grid frequency.",
             })
         # 3. High Clean Surplus
         elif net_balance > 120.0:
@@ -93,7 +93,7 @@ def generate_recommendations(
                 "severity": "success",
                 "title": f"Clean Energy Surplus (+{net_balance:.1f} MW)",
                 "description": f"Green generation exceeds demand at {timestamp}. Renewable penetration reaches {penetration:.1f}%.",
-                "action": "Direct surplus clean energy to recharge BESS battery banks, pump storage facilities, and stimulate flexible EV charging loads.",
+                "action": "Direct surplus clean energy toward available storage, pump storage, or flexible EV charging loads.",
             })
 
     # If no major events triggered, add balanced operational note

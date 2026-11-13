@@ -29,6 +29,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR / 'smart_grid.db'
 
 # External APIs
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "").strip()
+ALLOWED_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_CORS_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000").split(",")
+    if origin.strip()
+]
 
 # API authentication is opt-in for local development and required when enabled.
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
